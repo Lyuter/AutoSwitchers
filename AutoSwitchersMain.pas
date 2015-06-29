@@ -6,7 +6,7 @@
            Mail : pro100lyuter@mail.ru
 
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~}
-unit AutoSwitchers;
+unit AutoSwitchersMain;
 
 interface
 

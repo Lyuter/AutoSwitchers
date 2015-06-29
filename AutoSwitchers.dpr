@@ -1,9 +1,9 @@
-library aimp_AutoSwitchers;
+library AutoSwitchers;
 
 uses
   Windows,
   apiPlugin,
-  AutoSwitchers in 'AutoSwitchers.pas';
+  AutoSwitchersMain in 'AutoSwitchersMain.pas';
 
 function AIMPPluginGetHeader(out Header: IAIMPPlugin): HRESULT; stdcall;
 begin
