@@ -1,7 +1,7 @@
 {~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
            AutoSwitchers - AIMP3 plugin
-            Version: 1.2 (29.06.2015)
+                  Version: 1.2
               Copyright (c) Lyuter
            Mail : pro100lyuter@mail.ru
 
@@ -20,7 +20,9 @@ const
     PLUGIN_NAME              = 'AutoSwitchers v1.2 for AIMP 3';
     PLUGIN_AUTHOR            = 'Author: Lyuter';
     PLUGIN_SHORT_DESCRIPTION = '';
-    PLUGIN_FULL_DESCRIPTION  = 'The plugin automatically switch off the tracks in the playlist after playing them. Use Playlist\Misc menu to activate the plugin.';
+    PLUGIN_FULL_DESCRIPTION  = 'The plugin automatically switch off the tracks ' +
+                               'in the playlist after playing them. ' +
+                               'Use Playlist\Misc menu to activate the plugin.';
     //
     AS_CAPTION               = 'AutoSwitchers';
     //
@@ -33,10 +35,11 @@ type
 
   TASMessageHook = class(TInterfacedObject, IAIMPMessageHook)
   public
-    procedure CoreMessage(Message: DWORD; Param1: Integer; Param2: Pointer; var Result: HRESULT); stdcall;
+    procedure CoreMessage(Message: DWORD; Param1: Integer; Param2: Pointer;
+                                                  var Result: HRESULT); stdcall;
   end;
 
-  TPlugin = class(TAIMPCustomPlugin)
+  TASPlugin = class(TAIMPCustomPlugin)
   private
     ASMessageHook: TASMessageHook;
     procedure CreateContextMenu;
@@ -183,7 +186,7 @@ end;
 {=========================================================================)
                                  TPlugin
 (=========================================================================}
-function TPlugin.InfoGet(Index: Integer): PWideChar;
+function TASPlugin.InfoGet(Index: Integer): PWideChar;
 begin
   case Index of
     AIMP_PLUGIN_INFO_NAME               : Result := PLUGIN_NAME;
@@ -195,13 +198,13 @@ begin
   end;
 end;
 
-function TPlugin.InfoGetCategories: Cardinal;
+function TASPlugin.InfoGetCategories: Cardinal;
 begin
   Result := AIMP_PLUGIN_CATEGORY_ADDONS;
 end;
 {--------------------------------------------------------------------
 Initialize}
-function TPlugin.Initialize(Core: IAIMPCore): HRESULT;
+function TASPlugin.Initialize(Core: IAIMPCore): HRESULT;
 var
   ServiceMenuManager: IAIMPServiceMenuManager;
   ServiceMessageDispatcher: IAIMPServiceMessageDispatcher;
@@ -213,31 +216,37 @@ begin
       Result := inherited Initialize(Core);
       if Succeeded(Result)
       then
-        begin
+        try
           CreateContextMenu;
           // Creating the message hook
           CheckResult(CoreIntf.QueryInterface(IID_IAIMPServiceMessageDispatcher,
                                                 ServiceMessageDispatcher));
           ASMessageHook := TASMessageHook.Create;
           CheckResult(ServiceMessageDispatcher.Hook(ASMessageHook));
+        except
+          Result := E_UNEXPECTED;
         end;
     end;
 end;
 {--------------------------------------------------------------------
 Finalize}
-procedure TPlugin.Finalize;
+procedure TASPlugin.Finalize;
 var
   ServiceMessageDispatcher: IAIMPServiceMessageDispatcher;
 begin
+ try
   CleanListOfHandledPlaylists;
   // Removing the message hook
   CheckResult(CoreIntf.QueryInterface(IID_IAIMPServiceMessageDispatcher,
                                                 ServiceMessageDispatcher));
   CheckResult(ServiceMessageDispatcher.Unhook(ASMessageHook));
+ except
+  ShowErrorMessage('"Plugin.Finalize" failure!');
+ end;
   inherited;
 end;
 {--------------------------------------------------------------------}
-function TPlugin.GetBuiltInMenu(ID: Integer): IAIMPMenuItem;
+function TASPlugin.GetBuiltInMenu(ID: Integer): IAIMPMenuItem;
 var
   AMenuService: IAIMPServiceMenuManager;
 begin
@@ -245,7 +254,7 @@ begin
   CheckResult(AMenuService.GetBuiltIn(ID, Result));
 end;
 {--------------------------------------------------------------------}
-procedure TPlugin.CreateContextMenu;
+procedure TASPlugin.CreateContextMenu;
 var
   ASContextMenu: IAIMPMenuItem;
 begin
@@ -328,7 +337,7 @@ try
   CheckResult(MenuItem.SetValueAsInt32(AIMP_MENUITEM_PROPID_CHECKED,
                           Integer(IsPlaylistHandled(GetActivePlaylistID))));
 except
-  ShowErrorMessage('"MenuOnShowHandler.OnExecute" failure!');
+  ShowErrorMessage('"MenuOnShowHandler.Execute" failure!');
 end;
 end;
 
