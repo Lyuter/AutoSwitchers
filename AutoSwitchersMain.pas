@@ -20,9 +20,9 @@ const
     PLUGIN_NAME              = 'AutoSwitchers v1.2 for AIMP 3';
     PLUGIN_AUTHOR            = 'Author: Lyuter';
     PLUGIN_SHORT_DESCRIPTION = '';
-    PLUGIN_FULL_DESCRIPTION  = 'The plugin automatically switch off the tracks ' +
-                               'in the playlist after playing them. ' +
-                               'Use Playlist\Misc menu to activate the plugin.';
+    PLUGIN_FULL_DESCRIPTION  = '* The plugin automatically switch off the tracks ' +
+                               'in the playlist after playing them. '#13 +
+                               '* Use Playlist\Misc menu to activate the plugin.';
     //
     AS_CAPTION               = 'AutoSwitchers';
     //
@@ -41,7 +41,7 @@ type
 
   TASPlugin = class(TAIMPCustomPlugin)
   private
-    ASMessageHook: TASMessageHook;
+    ASMessageHook: IAIMPMessageHook;
     procedure CreateContextMenu;
     function GetBuiltInMenu(ID: Integer): IAIMPMenuItem;
   protected
@@ -184,7 +184,7 @@ end;
 end;
 
 {=========================================================================)
-                                 TPlugin
+                                 TASPlugin
 (=========================================================================}
 function TASPlugin.InfoGet(Index: Integer): PWideChar;
 begin
@@ -281,7 +281,7 @@ end;
 end;
 
 {=========================================================================)
-                                TUMMessageHook
+                              TASMessageHook
 (=========================================================================}
 procedure TASMessageHook.CoreMessage(Message: DWORD; Param1: Integer;
   Param2: Pointer; var Result: HRESULT);
