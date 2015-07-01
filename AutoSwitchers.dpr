@@ -21,6 +21,9 @@ uses
 
 function AIMPPluginGetHeader(out Header: IAIMPPlugin): HRESULT; stdcall;
 begin
+{$IFDEF DEBUG}
+    ReportMemoryLeaksOnShutdown := True;
+{$ENDIF}
   try
     Header := TASPlugin.Create;
     Result := S_OK;
