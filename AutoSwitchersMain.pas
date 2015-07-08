@@ -27,20 +27,24 @@ const
     //
     AS_CAPTION               = 'AutoSwitchers';
     //
-    AS_CONTEXTMENU_CAPTION            = 'AutoSwitchers';
-    AS_CONTEXTMENU_ID_PARENT          = 'AutoSwitchers.Menu.Parent';
-    AS_CONTEXTMENU_ID_ENABLE          = 'AutoSwitchers.Menu.Enable';
-    AS_CONTEXTMENU_ID_SKIPFAVORITE    = 'AutoSwitchers.Menu.SkipFavorite';
+    AS_CONTEXTMENU_CAPTION             = 'AutoSwitchers';
+    AS_CONTEXTMENU_ID_PARENT           = 'AutoSwitchers.Menu.Parent';
+    AS_CONTEXTMENU_ID_ENABLE           = 'AutoSwitchers.Menu.Enable';
+    AS_CONTEXTMENU_ID_SKIPFAVORITE     = 'AutoSwitchers.Menu.SkipFavorite';
+    AS_CONTEXTMENU_ID_WAITFORLIBANSWER = 'AutoSwitchers.Menu.WaitForLibAnswer';
     //
-    AS_CONTEXTMENU_KEYPATH_ENABLE       = 'AutoSwitchers\EnablePlugin';
-    AS_CONTEXTMENU_KEYPATH_SKIPFAVORITE = 'AutoSwitchers\SkipFavorite';
+    AS_CONTEXTMENU_KEYPATH_ENABLE           = 'AutoSwitchers\EnablePlugin';
+    AS_CONTEXTMENU_KEYPATH_SKIPFAVORITE     = 'AutoSwitchers\SkipFavorite';
+    AS_CONTEXTMENU_KEYPATH_WAITFORLIBANSWER = 'AutoSwitchers\WaitForLibAnswer';
     //
-    AS_CONFIG_KEYPATH_HANDLEDLIST     = 'AutoSwitchers\HandledPlaylistsID';
-    AS_CONFIG_KEYPATH_SKIPFAVORITE    = 'AutoSwitchers\SkipFavorite';
+    AS_CONFIG_KEYPATH_HANDLEDLIST      = 'AutoSwitchers\HandledPlaylistsID';
+    AS_CONFIG_KEYPATH_SKIPFAVORITE     = 'AutoSwitchers\SkipFavorite';
+    AS_CONFIG_KEYPATH_WAITFORLIBANSWER = 'AutoSwitchers\WaitForLibAnswer';
 
 type
 
   TASMessageHook = class(TInterfacedObject, IAIMPMessageHook)
+    LastPlaylistItem: IAIMPPlaylistItem;
   public
     procedure CoreMessage(Message: DWORD; Param1: Integer; Param2: Pointer;
                                                   var Result: HRESULT); stdcall;
@@ -48,7 +52,7 @@ type
 
   TASPlugin = class(TAIMPCustomPlugin)
   private
-    ASMessageHook: IAIMPMessageHook;
+    ASMessageHook: TASMessageHook;
     procedure CreateContextMenu;
     function GetBuiltInMenu(ID: Integer): IAIMPMenuItem;
   protected
@@ -74,6 +78,16 @@ type
   end;
 
   TASMenuSkipFavoriteOnShowHandler = class(TInterfacedObject, IAIMPActionEvent)
+  public
+    procedure OnExecute(Data: IInterface); stdcall;
+  end;
+
+  TASMenuWaitForLibAnswerHandler = class(TInterfacedObject, IAIMPActionEvent)
+  public
+    procedure OnExecute(Data: IInterface); stdcall;
+  end;
+
+  TASMenuWaitForLibAnswerOnShowHandler = class(TInterfacedObject, IAIMPActionEvent)
   public
     procedure OnExecute(Data: IInterface); stdcall;
   end;
@@ -159,20 +173,18 @@ begin
   then Result := True;
 end;
 {--------------------------------------------------------------------}
-procedure ToggleSkipFavoriteStatus;
+function IsWaitForLibAnswer: Boolean;
 var
   ServiceConfig: IAIMPServiceConfig;
-  SkipFavoriteStatus: Integer;
+  WaitForLibAnswer: Integer;
 begin
+  // Disable by default
+  Result := False;
   CheckResult(CoreIntf.QueryInterface(IID_IAIMPServiceConfig, ServiceConfig));
-  if Failed(ServiceConfig.GetValueAsInt32(MakeString(AS_CONFIG_KEYPATH_SKIPFAVORITE),
-                                                    SkipFavoriteStatus))
-  then
-    CheckResult(ServiceConfig.SetValueAsInt32(MakeString(AS_CONFIG_KEYPATH_SKIPFAVORITE),
-                                   Integer(True)))
-  else
-    CheckResult(ServiceConfig.SetValueAsInt32(MakeString(AS_CONFIG_KEYPATH_SKIPFAVORITE),
-                                   Integer(not Boolean(SkipFavoriteStatus))))
+  if not Failed(ServiceConfig.GetValueAsInt32(MakeString(AS_CONFIG_KEYPATH_WAITFORLIBANSWER),
+                                                    WaitForLibAnswer))
+    and (WaitForLibAnswer <> 0)
+  then Result := True;
 end;
 {--------------------------------------------------------------------}
 procedure TogglePlaylistStatus(PlaylistID: IAIMPString);
@@ -201,6 +213,75 @@ begin
       CheckResult(ServiceConfig.SetValueAsString(MakeString(AS_CONFIG_KEYPATH_HANDLEDLIST),
                                                     PLIDList));
     end
+end;
+{--------------------------------------------------------------------}
+procedure ToggleSkipFavoriteStatus;
+var
+  ServiceConfig: IAIMPServiceConfig;
+  SkipFavoriteStatus: Integer;
+begin
+  CheckResult(CoreIntf.QueryInterface(IID_IAIMPServiceConfig, ServiceConfig));
+  if Failed(ServiceConfig.GetValueAsInt32(MakeString(AS_CONFIG_KEYPATH_SKIPFAVORITE),
+                                                    SkipFavoriteStatus))
+  then
+    CheckResult(ServiceConfig.SetValueAsInt32(MakeString(AS_CONFIG_KEYPATH_SKIPFAVORITE),
+                                   Integer(True)))
+  else
+    CheckResult(ServiceConfig.SetValueAsInt32(MakeString(AS_CONFIG_KEYPATH_SKIPFAVORITE),
+                                   Integer(not Boolean(SkipFavoriteStatus))))
+end;
+{--------------------------------------------------------------------}
+procedure ToggleWaitForLibAnswerStatus;
+var
+  ServiceConfig: IAIMPServiceConfig;
+  WaitForLibAnswerStatus: Integer;
+begin
+  CheckResult(CoreIntf.QueryInterface(IID_IAIMPServiceConfig, ServiceConfig));
+  if Failed(ServiceConfig.GetValueAsInt32(MakeString(AS_CONFIG_KEYPATH_WAITFORLIBANSWER),
+                                                    WaitForLibAnswerStatus))
+  then
+    CheckResult(ServiceConfig.SetValueAsInt32(MakeString(AS_CONFIG_KEYPATH_WAITFORLIBANSWER),
+                                   Integer(True)))
+  else
+    CheckResult(ServiceConfig.SetValueAsInt32(MakeString(AS_CONFIG_KEYPATH_WAITFORLIBANSWER),
+                                   Integer(not Boolean(WaitForLibAnswerStatus))))
+end;
+{--------------------------------------------------------------------}
+procedure DisableActivePlaylistItem;
+var
+  PLManager: IAIMPServicePlaylistManager;
+  PlayablePL: IAIMPPlaylist;
+  PlayablePLPropertyList: IAIMPPropertyList;
+  PlayablePLID: IAIMPString;
+
+  ServicePlayer: IAIMPServicePlayer;
+  ActiveItem: IAIMPPlaylistItem;
+begin
+  CheckResult(CoreIntf.QueryInterface(IID_IAIMPServicePlaylistManager, PLManager));
+  if PLManager.GetPlayablePlaylist(PlayablePL) <> S_OK
+  then  // If the playable playlist don't exists then we don't need to disable the ActiveItem
+    exit;
+  CheckResult(PlayablePL.QueryInterface(IID_IAIMPPropertyList, PlayablePLPropertyList));
+  CheckResult(PlayablePLPropertyList.GetValueAsObject(AIMP_PLAYLIST_PROPID_ID,
+                                          IID_IAIMPString, PlayablePLID));
+  if IsPlaylistHandled(PlayablePLID)
+  then
+    begin
+      // Turning off the active track
+      CheckResult(CoreIntf.QueryInterface(IID_IAIMPServicePlayer, ServicePlayer));
+      if ServicePlayer.GetPlaylistItem(ActiveItem) <> S_OK
+      then  // If the ActiveItem don't exists then we don't need to disable it
+        exit;
+
+      if IsSkipFavorite
+      then
+        if not (IsFavorite(ActiveItem))
+          then
+            ActiveItem.SetValueAsInt32(AIMP_PLAYLISTITEM_PROPID_PLAYINGSWITCH, 0)
+          else
+      else
+        ActiveItem.SetValueAsInt32(AIMP_PLAYLISTITEM_PROPID_PLAYINGSWITCH, 0);
+    end;
 end;
 {--------------------------------------------------------------------}
 procedure CleanListOfHandledPlaylists;
@@ -349,6 +430,15 @@ try
   // Register the menu item in manager
   CheckResult(CoreIntf.RegisterExtension(IID_IAIMPServiceMenuManager, ASContextMenu));
 
+  // Creatind the menu delimiter
+  CheckResult(CoreIntf.CreateObject(IID_IAIMPMenuItem, ASContextMenu));
+  CheckResult(ASContextMenu.SetValueAsObject(AIMP_MENUITEM_PROPID_NAME,
+                                          MakeString('-')));
+  CheckResult(ASContextMenu.SetValueAsObject(AIMP_MENUITEM_PROPID_PARENT,
+                                          ASContextMenuParent));
+  // Register the menu item in manager
+  CheckResult(CoreIntf.RegisterExtension(IID_IAIMPServiceMenuManager, ASContextMenu));
+
   // Create menu "SkipFavorite"
   CheckResult(CoreIntf.CreateObject(IID_IAIMPMenuItem, ASContextMenu));
   CheckResult(ASContextMenu.SetValueAsObject(AIMP_MENUITEM_PROPID_ID,
@@ -365,6 +455,23 @@ try
                                   TASMenuSkipFavoriteOnShowHandler.Create));
   // Register the menu item in manager
   CheckResult(CoreIntf.RegisterExtension(IID_IAIMPServiceMenuManager, ASContextMenu));
+
+  // Create menu "WaitForLibAnswer"
+  CheckResult(CoreIntf.CreateObject(IID_IAIMPMenuItem, ASContextMenu));
+  CheckResult(ASContextMenu.SetValueAsObject(AIMP_MENUITEM_PROPID_ID,
+                              MakeString(AS_CONTEXTMENU_ID_WAITFORLIBANSWER)));
+  CheckResult(ASContextMenu.SetValueAsObject(AIMP_MENUITEM_PROPID_NAME,
+                MakeString(LangLoadString(AS_CONTEXTMENU_KEYPATH_WAITFORLIBANSWER))));
+  CheckResult(ASContextMenu.SetValueAsInt32(AIMP_MENUITEM_PROPID_STYLE,
+                                          AIMP_MENUITEM_STYLE_CHECKBOX));
+  CheckResult(ASContextMenu.SetValueAsObject(AIMP_MENUITEM_PROPID_PARENT,
+                                          ASContextMenuParent));
+  CheckResult(ASContextMenu.SetValueAsObject(AIMP_MENUITEM_PROPID_EVENT,
+                                  TASMenuWaitForLibAnswerHandler.Create));
+  CheckResult(ASContextMenu.SetValueAsObject(AIMP_MENUITEM_PROPID_EVENT_ONSHOW,
+                                  TASMenuWaitForLibAnswerOnShowHandler.Create));
+  // Register the menu item in manager
+  CheckResult(CoreIntf.RegisterExtension(IID_IAIMPServiceMenuManager, ASContextMenu));
 except
   ShowErrorMessage('"CreateContextMenu" failure!');
 end;
@@ -376,13 +483,9 @@ end;
 procedure TASMessageHook.CoreMessage(Message: DWORD; Param1: Integer;
   Param2: Pointer; var Result: HRESULT);
 var
-  PLManager: IAIMPServicePlaylistManager;
-  PlayablePL: IAIMPPlaylist;
-  PlayablePLPropertyList: IAIMPPropertyList;
-  PlayablePLID: IAIMPString;
-
   ServicePlayer: IAIMPServicePlayer;
   ActiveItem: IAIMPPlaylistItem;
+  ActiveItemName: IAIMPString;
 
   ServiceMenuManager: IAIMPServiceMenuManager;
   MenuItem: IAIMPMenuItem;
@@ -391,44 +494,55 @@ try
   case Message  of
     AIMP_MSG_EVENT_STREAM_START:
       begin
-        CheckResult(CoreIntf.QueryInterface(IID_IAIMPServicePlaylistManager,
-                                                PLManager));
-        CheckResult(PLManager.GetPlayablePlaylist(PlayablePL));
-        CheckResult(PlayablePL.QueryInterface(IID_IAIMPPropertyList,
-                                                PlayablePLPropertyList));
-        CheckResult(PlayablePLPropertyList.GetValueAsObject(AIMP_PLAYLIST_PROPID_ID,
-                                                IID_IAIMPString, PlayablePLID));
-        if IsPlaylistHandled(PlayablePLID)
+        if not IsWaitForLibAnswer
         then
-          begin
-            // Turning off the active track
-            CheckResult(CoreIntf.QueryInterface(IID_IAIMPServicePlayer, ServicePlayer));
-            CheckResult(ServicePlayer.GetPlaylistItem(ActiveItem));
+          DisableActivePlaylistItem;
 
-            if IsSkipFavorite
-            then
-              if not (IsFavorite(ActiveItem))
-                then
-                  ActiveItem.SetValueAsInt32(AIMP_PLAYLISTITEM_PROPID_PLAYINGSWITCH, 0)
-                else
-            else
-              ActiveItem.SetValueAsInt32(AIMP_PLAYLISTITEM_PROPID_PLAYINGSWITCH, 0);
-          end;
+        CheckResult(CoreIntf.QueryInterface(IID_IAIMPServicePlayer, ServicePlayer));
+        if ServicePlayer.GetPlaylistItem(ActiveItem) = S_OK
+        then
+          LastPlaylistItem := ActiveItem;
       end;
     AIMP_MSG_EVENT_LANGUAGE:
       begin
         // Update menu names
         CheckResult(CoreIntf.QueryInterface(IID_IAIMPServiceMenuManager,
                                           ServiceMenuManager));
+
         CheckResult(ServiceMenuManager.GetByID(MakeString(AS_CONTEXTMENU_ID_ENABLE),
                                           MenuItem));
         CheckResult(MenuItem.SetValueAsObject(AIMP_MENUITEM_PROPID_NAME,
                       MakeString(LangLoadString(AS_CONTEXTMENU_KEYPATH_ENABLE))));
+
         CheckResult(ServiceMenuManager.GetByID(MakeString(AS_CONTEXTMENU_ID_SKIPFAVORITE),
                                           MenuItem));
         CheckResult(MenuItem.SetValueAsObject(AIMP_MENUITEM_PROPID_NAME,
                       MakeString(LangLoadString(AS_CONTEXTMENU_KEYPATH_SKIPFAVORITE))));
+
+        CheckResult(ServiceMenuManager.GetByID(MakeString(AS_CONTEXTMENU_ID_WAITFORLIBANSWER),
+                                          MenuItem));
+        CheckResult(MenuItem.SetValueAsObject(AIMP_MENUITEM_PROPID_NAME,
+                      MakeString(LangLoadString(AS_CONTEXTMENU_KEYPATH_WAITFORLIBANSWER))));
       end;
+    AIMP_MSG_EVENT_STATISTICS_CHANGED:
+      begin
+        if  IsWaitForLibAnswer
+        then
+          try
+            // Checking if we got message from right source
+            CheckResult(CoreIntf.QueryInterface(IID_IAIMPServicePlayer, ServicePlayer));
+            if ServicePlayer.GetPlaylistItem(ActiveItem) <> S_OK
+            then
+              exit; // If the ActiveItem don't exists then we got message from wrong source
+            CheckResult(ActiveItem.GetValueAsObject(AIMP_PLAYLISTITEM_PROPID_FILENAME, IID_IAIMPString, ActiveItemName));
+
+            if PWideChar(Param2) = IAIMPStringToString(ActiveItemName)
+            then  // If the Param2 <> ActiveItemName then we got message from wrong source
+              DisableActivePlaylistItem;
+          except
+            ShowErrorMessage('"EVENT_STATISTICS_CHANGED" failure!');
+          end;
+      end
   end;
 except
   ShowErrorMessage('"MessageHook.CoreMessage" failure!');
@@ -480,6 +594,29 @@ end;
 end;
 
 {=========================================================================)
+                    TASMenuWaitForLibAnswerOnShowHandler
+(=========================================================================}
+procedure TASMenuWaitForLibAnswerOnShowHandler.OnExecute(Data: IInterface);
+var
+  ServiceMenuManager: IAIMPServiceMenuManager;
+  MenuItem: IAIMPMenuItem;
+begin
+try
+  // Update the Menu status
+  CheckResult(CoreIntf.QueryInterface(IID_IAIMPServiceMenuManager,
+                                          ServiceMenuManager));
+  CheckResult(ServiceMenuManager.GetByID(MakeString(AS_CONTEXTMENU_ID_WAITFORLIBANSWER),
+                                          MenuItem));
+  CheckResult(MenuItem.SetValueAsInt32(AIMP_MENUITEM_PROPID_CHECKED,
+                                          Integer(IsWaitForLibAnswer)));
+  CheckResult(MenuItem.SetValueAsInt32(AIMP_MENUITEM_PROPID_ENABLED,
+                              Integer(IsPlaylistHandled(GetActivePlaylistID))));
+except
+  ShowErrorMessage('"WaitForLibAnswerOnShowHandler.OnExecute" failure!');
+end;
+end;
+
+{=========================================================================)
                              TASMenuEnableHandler
 (=========================================================================}
 procedure TASMenuEnableHandler.OnExecute(Data: IInterface);
@@ -492,7 +629,7 @@ end;
 end;
 
 {=========================================================================)
-                        TASMenuSkipFavoriteHandler
+                         TASMenuSkipFavoriteHandler
 (=========================================================================}
 procedure TASMenuSkipFavoriteHandler.OnExecute(Data: IInterface);
 begin
@@ -500,6 +637,18 @@ try
   ToggleSkipFavoriteStatus;
 except
   ShowErrorMessage('"SkipFavoriteHandler.OnExecute" failure!');
+end;
+end;
+
+{=========================================================================)
+                       TASMenuWaitForLibAnswerHandler
+(=========================================================================}
+procedure TASMenuWaitForLibAnswerHandler.OnExecute(Data: IInterface);
+begin
+try
+  ToggleWaitForLibAnswerStatus;
+except
+  ShowErrorMessage('"WaitForLibAnswerHandler.OnExecute" failure!');
 end;
 end;
 
