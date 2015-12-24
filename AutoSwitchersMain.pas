@@ -1,7 +1,7 @@
 {~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
            AutoSwitchers - AIMP3 plugin
-                 Version: 1.2.1
+                 Version: 1.2.2
               Copyright (c) Lyuter
            Mail : pro100lyuter@mail.ru
 
@@ -18,7 +18,7 @@ uses  Windows, SysUtils,
       apiMUI;
 
 const
-    PLUGIN_NAME              = 'AutoSwitchers v1.2.1 for AIMP 3';
+    PLUGIN_NAME              = 'AutoSwitchers v1.2.2';
     PLUGIN_AUTHOR            = 'Author: Lyuter';
     PLUGIN_SHORT_DESCRIPTION = '';
     PLUGIN_FULL_DESCRIPTION  = '* The plugin automatically switch off the tracks ' +
@@ -346,10 +346,10 @@ end;
 Initialize}
 function TASPlugin.Initialize(Core: IAIMPCore): HRESULT;
 var
-  ServiceMenuManager: IAIMPServiceMenuManager;
+  APlaylistManager: IAIMPServicePlaylistManager;
   ServiceMessageDispatcher: IAIMPServiceMessageDispatcher;
 begin
-  Result := Core.QueryInterface(IID_IAIMPServiceMenuManager, ServiceMenuManager);
+  Result := Core.QueryInterface(IID_IAIMPServicePlaylistManager, APlaylistManager);
   if Succeeded(Result)
   then
     begin
