@@ -1,7 +1,7 @@
 {~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
            AutoSwitchers - AIMP3 plugin
-                 Version: 1.2.2
+                 Version: 1.2.3
               Copyright (c) Lyuter
            Mail : pro100lyuter@mail.ru
 
@@ -18,7 +18,7 @@ uses  Windows, SysUtils,
       apiMUI;
 
 const
-    PLUGIN_NAME              = 'AutoSwitchers v1.2.2';
+    PLUGIN_NAME              = 'AutoSwitchers v1.2.3';
     PLUGIN_AUTHOR            = 'Author: Lyuter';
     PLUGIN_SHORT_DESCRIPTION = '';
     PLUGIN_FULL_DESCRIPTION  = '* The plugin automatically switch off the tracks ' +
@@ -258,7 +258,7 @@ var
   ActiveItem: IAIMPPlaylistItem;
 begin
   CheckResult(CoreIntf.QueryInterface(IID_IAIMPServicePlaylistManager, PLManager));
-  if PLManager.GetPlayablePlaylist(PlayablePL) <> S_OK
+  if (PLManager.GetPlayablePlaylist(PlayablePL) <> S_OK) or (PLManager = nil)
   then  // If the playable playlist don't exists then we don't need to disable the ActiveItem
     exit;
   CheckResult(PlayablePL.QueryInterface(IID_IAIMPPropertyList, PlayablePLPropertyList));
